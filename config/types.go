@@ -11,6 +11,9 @@ type Config struct {
 	CNIBinDir  string `yaml:"cni_bin_dir" default:"/opt/cni/bin/"`
 	LogDriver  string `yaml:"log_driver" default:"journal://"`
 	LogLevel   string `yaml:"log_level" default:"info"`
+
+	// from command line args
+	BundlePath string
 }
 
 func LoadConfig(path string) (config Config, err error) {

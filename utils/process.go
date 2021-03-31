@@ -2,10 +2,12 @@ package utils
 
 import (
 	"context"
+	"fmt"
+	"io"
 	"os"
 	"os/exec"
 	"os/signal"
-	"syscall"
+	"strings"
 
 	"github.com/pkg/errors"
 	log "github.com/sirupsen/logrus"
@@ -18,9 +20,12 @@ type Process struct {
 	cmd  *exec.Cmd
 }
 
-func NewProcess(path string, args []string, env []string) *Process {
+func NewProcess(path string, args, env []string, stdin io.Reader) *Process {
 	cmd := exec.Command(path, args...)
-	cmd.Stdin = os.Stdin
+	if stdin == nil {
+		stdin = os.Stdin
+	}
+	cmd.Stdin = stdin
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	cmd.Env = env
@@ -31,11 +36,11 @@ func NewProcess(path string, args []string, env []string) *Process {
 	}
 }
 
-func (p *Process) Start() (err error) {
+func (p Process) Start() (err error) {
 	return errors.WithStack(p.cmd.Start())
 }
 
-func (p *Process) Wait() (returnCode int) {
+func (p Process) Wait() (err error) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
@@ -54,26 +59,32 @@ func (p *Process) Wait() (returnCode int) {
 
 		}
 	}()
-	return parseReturnCode(errors.WithStack(p.cmd.Wait()))
+	return errors.WithStack(p.cmd.Wait())
 }
 
-func parseReturnCode(err error) int {
+func ParseExitCode(err error) int {
 	if err == nil {
 		return 0
 	}
-	if exit, ok := err.(*exec.ExitError); ok {
-		if code, ok := exit.Sys().(syscall.WaitStatus); ok {
-			return code.ExitStatus()
-		}
+	if exit, ok := errors.Unwrap(err).(*exec.ExitError); ok {
+		return exit.ExitCode()
 	}
-	log.Errorf("failed to retrieve exit code: %+v", err)
+	log.Warnf("failed to retrieve exit code: %+v", err)
 	return 1
 }
 
-func (p *Process) Run() (exitCode int) {
-	if err := p.Start(); err != nil {
-		log.Errorf("failed to start process: %+v", err)
-		return 1
+func (p Process) Run() (err error) {
+	if err = p.Start(); err != nil {
+		return err
 	}
 	return p.Wait()
+}
+
+func (p Process) Command() string {
+	return fmt.Sprintf("%s %s %s < %+v",
+		strings.Join(p.Env, " "),
+		p.Path,
+		strings.Join(p.Args, " "),
+		p.cmd.Stdin,
+	)
 }

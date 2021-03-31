@@ -1,7 +1,11 @@
 package oci
 
 import (
+	"io/ioutil"
+
 	"github.com/opencontainers/runtime-spec/specs-go"
+	"github.com/pkg/errors"
+	"gopkg.in/yaml.v2"
 )
 
 type ContainerMeta struct {
@@ -10,5 +14,13 @@ type ContainerMeta struct {
 }
 
 func LoadContainerMeta(bundlePath string) (*ContainerMeta, error) {
-	return nil, nil
+	data, err := ioutil.ReadFile(bundlePath)
+	if err != nil {
+		return nil, errors.WithStack(err)
+	}
+
+	containerMeta := &ContainerMeta{
+		bundlePath: bundlePath,
+	}
+	return containerMeta, yaml.Unmarshal(data, containerMeta)
 }
