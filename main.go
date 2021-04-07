@@ -2,6 +2,7 @@ package main
 
 import (
 	"os"
+	"path/filepath"
 
 	"github.com/pkg/errors"
 	"github.com/projecteru2/docker-cni/cni"
@@ -18,66 +19,78 @@ const (
 func main() {
 	var err error
 
-	if os.Args[1] == "--version" {
+	// TODO@zc: --help / -h
+	if len(os.Args) < 2 || os.Args[1] == "--version" {
 		printVersion()
 		os.Exit(0)
 	}
 
-	configPath, bundlePath, ociPath, ociArgs, err := parseArgs(os.Args)
+	configPath, bundlePath, ociPath, ociArgs, err := parseArgs()
 	if err != nil {
-		log.Fatal("invalid arguments: %+v", err)
+		log.Fatalf("invalid arguments: %+v", err)
 	}
 
 	conf, err := setup(configPath, bundlePath)
 	if err != nil {
-		log.Fatal("failed to setup: %+v", err)
+		log.Fatalf("failed to setup: %+v", err)
 	}
 
-	containerMeta, err := oci.LoadContainerMeta(conf.BundlePath)
-	if err != nil {
-		log.Fatal("failed to load container meta from oci spec: %+v", err)
-	}
-
-	netnsPath, del, err := setupNetwork(conf, *containerMeta)
-	if err != nil {
-		log.Fatal("failed to setup cni network: %+v", err)
-	}
-	defer func() {
+	if conf.BundlePath != "" {
+		// inject netns path and hook
+		containerMeta, err := oci.LoadContainerMeta(conf.BundlePath)
 		if err != nil {
-			log.Info("rolling back, executing `%s`", del.Command())
-			del.Run()
+			log.Fatalf("failed to load container meta from oci spec: %+v", err)
 		}
-	}()
 
-	if err = updateContainerMeta(containerMeta, netnsPath, del); err != nil {
-		log.Errorf("failed to update oci spec: %+v", err)
-		return
+		netnsPath, del, err := setupNetwork(conf, *containerMeta)
+		if err != nil {
+			log.Fatalf("failed to setup cni network: %+v", err)
+		}
+		// TODO@zc: this shall do in two oci processes
+		defer func() {
+			if err != nil {
+				log.Info("rolling back, executing `%s`", del.Command())
+				del.Run()
+			}
+		}()
+
+		if err = updateContainerMeta(containerMeta, netnsPath, del); err != nil {
+			log.Errorf("failed to update oci spec: %+v", err)
+			return
+		}
 	}
 
-	if err = runOCI(ociPath, ociArgs); err != nil {
-		log.Errorf("failed to complete oci: %+v", err)
-		return
-	}
+	err = runOCI(ociPath, ociArgs)
+	log.Debugf("docker-cni returns: %d", utils.ParseExitCode(err))
 	os.Exit(utils.ParseExitCode(err))
 }
 
 func printVersion() {}
 
-func parseArgs(args []string) (configPath, bundlePath, ociPath string, ociArgs []string, err error) {
-	if args[1] == "--config" && len(args) > 2 {
-		configPath = args[2]
-	}
-	if args[3] == "--runtime-path" && len(args) > 4 {
-		ociPath = args[4]
-	}
-	ociArgs = args[5:]
-	for idx, arg := range ociArgs {
-		if arg == "--bundle" && len(ociArgs) > idx+1 {
-			bundlePath = ociArgs[idx+1]
+func parseArgs() (configPath, bundlePath, ociPath string, ociArgs []string, err error) {
+	//TODO@zc: example config
+	idx := 1
+	for i, arg := range os.Args {
+		if arg == "--config" {
+			idx = i + 2
+			configPath = os.Args[i+1]
+			continue
+		}
+
+		if arg == "--runtime-path" {
+			idx = i + 2
+			ociPath = os.Args[i+1]
+			continue
+		}
+
+		if arg == "--bundle" {
+			bundlePath = os.Args[i+1]
 		}
 	}
-	if configPath == "" || bundlePath == "" || ociPath == "" {
-		err = errors.Errorf("--config, --bundle, --runtime-path are required")
+	ociArgs = os.Args[idx:]
+
+	if configPath == "" || ociPath == "" {
+		err = errors.Errorf("--config, --runtime-path are required: %+v", os.Args)
 	}
 	return
 }
@@ -86,7 +99,7 @@ func setup(configPath, bundlePath string) (conf config.Config, err error) {
 	if conf, err = config.LoadConfig(configPath); err != nil {
 		return
 	}
-	conf.BundlePath = bundlePath
+	conf.BundlePath = filepath.Join(bundlePath, "config.json")
 	return conf, conf.SetupLog()
 }
 

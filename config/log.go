@@ -13,7 +13,7 @@ import (
 func (c *Config) SetupLog() (err error) {
 	level, err := log.ParseLevel(c.LogLevel)
 	if err != nil {
-		return err
+		return errors.WithStack(err)
 	}
 	log.SetLevel(level)
 
@@ -37,6 +37,7 @@ func getLogger(driver string) (io.Writer, error) {
 		if !journal.Enabled() {
 			return nil, errors.Errorf("failed to set logger: journal not enabled")
 		}
+		return newJournalLogger(), nil
 	case strings.HasPrefix(driver, "file://"):
 		return newFileLogger(strings.TrimPrefix(driver, "file://"))
 	}
@@ -45,8 +46,13 @@ func getLogger(driver string) (io.Writer, error) {
 
 type journalLogger struct{}
 
+func newJournalLogger() *journalLogger {
+	//TODO@zc
+	return &journalLogger{}
+}
+
 func (l *journalLogger) Write(p []byte) (int, error) {
-	return len(p), journal.Print(journal.PriInfo, string(p))
+	return len(p), errors.WithStack(journal.Send(string(p), journal.PriInfo, map[string]string{"UNIT": "docker-cni"}))
 }
 
 type fileLogger struct {
@@ -54,10 +60,11 @@ type fileLogger struct {
 }
 
 func newFileLogger(filePath string) (*fileLogger, error) {
-	file, err := os.Open(filePath)
+	file, err := os.OpenFile(filePath, os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0666)
 	return &fileLogger{file}, errors.WithStack(err)
 }
 
 func (l *fileLogger) Write(p []byte) (int, error) {
-	return l.File.Write(p)
+	written, err := l.File.Write(p)
+	return written, errors.WithStack(err)
 }

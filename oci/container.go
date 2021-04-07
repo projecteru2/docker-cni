@@ -1,6 +1,7 @@
 package oci
 
 import (
+	"encoding/json"
 	"io/ioutil"
 	"strings"
 
@@ -8,7 +9,6 @@ import (
 	"github.com/pkg/errors"
 	"github.com/projecteru2/docker-cni/utils"
 	log "github.com/sirupsen/logrus"
-	"gopkg.in/yaml.v2"
 )
 
 func (c *ContainerMeta) ID() string {
@@ -44,7 +44,7 @@ func (c *ContainerMeta) AppendPoststopHook(process utils.Process) {
 }
 
 func (c *ContainerMeta) Save() (err error) {
-	data, err := yaml.Marshal(c.Spec)
+	data, err := json.Marshal(c.Spec)
 	if err != nil {
 		return errors.WithStack(err)
 	}

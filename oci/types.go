@@ -1,11 +1,11 @@
 package oci
 
 import (
+	"encoding/json"
 	"io/ioutil"
 
 	"github.com/opencontainers/runtime-spec/specs-go"
 	"github.com/pkg/errors"
-	"gopkg.in/yaml.v2"
 )
 
 type ContainerMeta struct {
@@ -22,5 +22,5 @@ func LoadContainerMeta(bundlePath string) (*ContainerMeta, error) {
 	containerMeta := &ContainerMeta{
 		bundlePath: bundlePath,
 	}
-	return containerMeta, yaml.Unmarshal(data, containerMeta)
+	return containerMeta, json.Unmarshal(data, &containerMeta.Spec)
 }

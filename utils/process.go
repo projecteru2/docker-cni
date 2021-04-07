@@ -37,6 +37,7 @@ func NewProcess(path string, args, env []string, stdin io.Reader) *Process {
 }
 
 func (p Process) Start() (err error) {
+	log.Debugf("running process %+v", p.cmd)
 	return errors.WithStack(p.cmd.Start())
 }
 
@@ -50,10 +51,10 @@ func (p Process) Wait() (err error) {
 		for {
 			select {
 			case sig := <-signals:
-				log.Infof("forwarding signal: %s", sig.String())
+				log.Infof("[%s] forwarding signal: %s", p.Path, sig.String())
 				p.cmd.Process.Signal(sig)
 			case <-ctx.Done():
-				log.Debug("context cancelled, forwarding done")
+				log.Infof("[%s] process done", p.Path)
 				return
 			}
 

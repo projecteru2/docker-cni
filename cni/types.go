@@ -3,7 +3,6 @@ package cni
 import (
 	"encoding/json"
 	"io/ioutil"
-	"os"
 	"path/filepath"
 	"sort"
 
@@ -19,29 +18,23 @@ type CNIPlugin struct {
 }
 
 type CNISpec struct {
-	Name string `json:"name"`
+	Type string `json:"type"`
 }
 
 func NewCNIPlugin(specDir, binDir string) (_ *CNIPlugin, err error) {
 	// walk thu the config_dir and get the first configure file in lexicographic order, the same behavior as kubelet: https://kubernetes.io/docs/concepts/extend-kubernetes/compute-storage-net/network-plugins/#cni
 
-	filenames := []string{}
-	if err = filepath.Walk(specDir, func(path string, info os.FileInfo, err error) error {
-		if err != nil {
-			return err
-		}
-		filenames = append(filenames, path)
-		return nil
-	}); err != nil {
+	files, err := ioutil.ReadDir(specDir)
+	if err != nil {
 		return nil, errors.WithStack(err)
 	}
 
-	if len(filenames) == 0 {
+	if len(files) == 0 {
 		return nil, errors.Errorf("cni configure not found: %s", specDir)
 	}
 
-	sort.Strings(filenames)
-	content, err := ioutil.ReadFile(filenames[0])
+	sort.Slice(files, func(i, j int) bool { return files[i].Name() < files[j].Name() })
+	content, err := ioutil.ReadFile(filepath.Join(specDir, files[0].Name()))
 	if err != nil {
 		return nil, errors.WithStack(err)
 	}
@@ -53,7 +46,7 @@ func NewCNIPlugin(specDir, binDir string) (_ *CNIPlugin, err error) {
 
 	return &CNIPlugin{
 		binDir:    binDir,
-		binPath:   filepath.Join(binDir, spec.Name),
+		binPath:   filepath.Join(binDir, spec.Type),
 		specBytes: content,
 	}, nil
 }
