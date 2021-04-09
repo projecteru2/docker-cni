@@ -12,12 +12,13 @@ func (p netnsManager) GetNetns(ID string) (netnsPath string, err error) {
 	return p.getNetnsPath(ID), errors.WithStack(err)
 }
 
-func (p netnsManager) CreateNetns(ID string) (netnsPath string, err error) {
-	return p.getNetnsPath(ID), errors.WithStack(utils.NewProcess("ip", []string{"net", "a", p.getID(ID)}, nil, nil).Run())
+func (p netnsManager) CreateNetns(ID string) (netnsPath string, _ *utils.Process, _ error) {
+	proc, err := utils.NewProcess("ip", []string{"net", "a", p.getID(ID)}, nil, nil)
+	return p.getNetnsPath(ID), proc, err
 }
 
-func (p netnsManager) DeleteNetns(ID string) (err error) {
-	return errors.WithStack(utils.NewProcess("ip", []string{"net", "d", p.getID(ID)}, nil, nil).Run())
+func (p netnsManager) DeleteNetns(ID string) (*utils.Process, error) {
+	return utils.NewProcess("ip", []string{"net", "d", p.getID(ID)}, nil, nil)
 }
 
 func (p netnsManager) getNetnsPath(ID string) string {

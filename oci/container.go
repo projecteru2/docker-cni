@@ -2,6 +2,7 @@ package oci
 
 import (
 	"encoding/json"
+	"fmt"
 	"io/ioutil"
 	"strings"
 
@@ -35,10 +36,14 @@ func (c *ContainerMeta) UpdateNetns(netnsPath string) {
 	}
 }
 
-func (c *ContainerMeta) AppendPoststopHook(process utils.Process) {
+func (c *ContainerMeta) AppendPoststopHook(process *utils.Process) {
+	cmd := fmt.Sprintf("%s %s", process.Path, strings.Join(process.Args, " "))
+	if process.Stdio != nil && process.Stdio.StdinBytes != nil {
+		cmd += " <<<'" + strings.ReplaceAll(strings.ReplaceAll(string(process.StdinBytes), "\n", ""), " ", "") + "'"
+	}
 	c.Hooks.Poststop = append(c.Hooks.Poststop, specs.Hook{
-		Path: process.Path,
-		Args: process.Args,
+		Path: "/bin/bash",
+		Args: []string{"bash", "-c", cmd},
 		Env:  process.Env,
 	})
 }
@@ -48,5 +53,6 @@ func (c *ContainerMeta) Save() (err error) {
 	if err != nil {
 		return errors.WithStack(err)
 	}
+	log.Debugf("save config")
 	return errors.WithStack(ioutil.WriteFile(c.bundlePath, data, 0644))
 }

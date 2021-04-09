@@ -1,13 +1,13 @@
 package utils
 
 import (
+	"bytes"
 	"context"
-	"fmt"
 	"io"
+	"io/ioutil"
 	"os"
 	"os/exec"
 	"os/signal"
-	"strings"
 
 	"github.com/pkg/errors"
 	log "github.com/sirupsen/logrus"
@@ -17,27 +17,74 @@ type Process struct {
 	Path string
 	Args []string
 	Env  []string
-	cmd  *exec.Cmd
+	*Stdio
+
+	cmd *exec.Cmd
 }
 
-func NewProcess(path string, args, env []string, stdin io.Reader) *Process {
+type Stdio struct {
+	StdinBytes []byte
+	Stdout     io.Reader
+	Stderr     io.Reader
+}
+
+func NewStdio(stdinBytes []byte) *Stdio {
+	stdio := &Stdio{
+		StdinBytes: stdinBytes,
+	}
+	return stdio
+}
+
+func (s *Stdio) Stdin() io.Reader {
+	if s == nil || s.StdinBytes == nil {
+		return os.Stdin
+	}
+	return bytes.NewReader(s.StdinBytes)
+}
+
+func (s *Stdio) StdoutBytes() []byte {
+	bs, err := ioutil.ReadAll(s.Stdout)
+	if err != nil {
+		log.Errorf("failed to read stdout: %+v", err)
+	}
+	return bs
+}
+
+func (s *Stdio) StderrBytes() []byte {
+	bs, err := ioutil.ReadAll(s.Stderr)
+	if err != nil {
+		log.Errorf("failed to read stderr: %+v", err)
+	}
+	return bs
+}
+
+func NewProcess(path string, args, env []string, stdio *Stdio) (_ *Process, err error) {
 	cmd := exec.Command(path, args...)
-	if stdin == nil {
-		stdin = os.Stdin
-	}
-	cmd.Stdin = stdin
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
+	cmd.Stdin = stdio.Stdin()
 	cmd.Env = env
-	return &Process{
-		Path: path,
-		Args: args,
-		cmd:  cmd,
+
+	if stdio != nil {
+		stdio.Stdout, err = cmd.StdoutPipe()
+		if err != nil {
+			return nil, errors.WithStack(err)
+		}
+		stdio.Stderr, err = cmd.StderrPipe()
+		if err != nil {
+			return nil, errors.WithStack(err)
+		}
 	}
+
+	return &Process{
+		Path:  path,
+		Args:  args,
+		Env:   env,
+		Stdio: stdio,
+		cmd:   cmd,
+	}, nil
 }
 
 func (p Process) Start() (err error) {
-	log.Debugf("running process %+v", p.cmd)
+	log.Debugf("spawning process %+v", p.cmd)
 	return errors.WithStack(p.cmd.Start())
 }
 
@@ -51,10 +98,8 @@ func (p Process) Wait() (err error) {
 		for {
 			select {
 			case sig := <-signals:
-				log.Infof("[%s] forwarding signal: %s", p.Path, sig.String())
 				p.cmd.Process.Signal(sig)
 			case <-ctx.Done():
-				log.Infof("[%s] process done", p.Path)
 				return
 			}
 
@@ -74,18 +119,12 @@ func ParseExitCode(err error) int {
 	return 1
 }
 
-func (p Process) Run() (err error) {
+func (p Process) Run() (stdoutBytes, stderrBytes []byte, err error) {
 	if err = p.Start(); err != nil {
-		return err
+		return
 	}
-	return p.Wait()
-}
-
-func (p Process) Command() string {
-	return fmt.Sprintf("%s %s %s < %+v",
-		strings.Join(p.Env, " "),
-		p.Path,
-		strings.Join(p.Args, " "),
-		p.cmd.Stdin,
-	)
+	if p.Stdio != nil {
+		stdoutBytes, stderrBytes = p.Stdio.StdoutBytes(), p.Stdio.StderrBytes()
+	}
+	return stdoutBytes, stderrBytes, p.Wait()
 }

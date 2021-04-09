@@ -14,7 +14,7 @@ type Config struct {
 	LogLevel   string `yaml:"log_level" default:"info"`
 
 	// from command line args
-	BundlePath string
+	OCISpecFilename string
 }
 
 func LoadConfig(path string) (config Config, err error) {

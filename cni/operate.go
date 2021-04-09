@@ -1,14 +1,10 @@
 package cni
 
 import (
-	"bytes"
-	"io"
-
 	"github.com/projecteru2/docker-cni/utils"
 )
 
-func (p *CNIPlugin) Add(ID, netnsPath, ifname string) *utils.Process {
-	configReader := p.getConfigReader()
+func (p *CNIPlugin) Add(ID, netnsPath, ifname string) (*utils.Process, error) {
 	return utils.NewProcess(
 		p.binPath, // path
 		nil,       // args
@@ -19,27 +15,21 @@ func (p *CNIPlugin) Add(ID, netnsPath, ifname string) *utils.Process {
 			"CNI_IFNAME=" + ifname,
 			"CNI_PATH=" + p.binDir,
 		}, // env
-		configReader, // stdin
+		utils.NewStdio(p.specBytes), // stdio
 	)
 }
 
-func (p *CNIPlugin) Del(ID, netnsPath, ifname string) *utils.Process {
+func (p *CNIPlugin) Del(ID, netnsPath, ifname string) (*utils.Process, error) {
 	return utils.NewProcess(
 		p.binPath, // path
 		nil,       // args
 		[]string{
 			"CNI_COMMAND=DEL",
 			"CNI_CONTAINERID=" + ID,
+			"CNI_NETNS=" + netnsPath,
 			"CNI_IFNAME=" + ifname,
+			"CNI_PATH=" + p.binDir,
 		}, // env
-		nil, //stdin
+		utils.NewStdio(p.specBytes), // stdio
 	)
-}
-
-func (p *CNIPlugin) PairOperation(ID, netnsPath, ifname string) (addProcess, delProcess *utils.Process) {
-	return p.Add(ID, netnsPath, ifname), p.Del(ID, netnsPath, ifname)
-}
-
-func (p *CNIPlugin) getConfigReader() io.Reader {
-	return bytes.NewReader(p.specBytes)
 }

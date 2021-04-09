@@ -1,9 +1,6 @@
 package main
 
 import (
-	"os"
-	"path/filepath"
-
 	"github.com/pkg/errors"
 	"github.com/projecteru2/docker-cni/cni"
 	"github.com/projecteru2/docker-cni/config"
@@ -15,67 +12,6 @@ import (
 const (
 	DefaultIfname = "eth0"
 )
-
-type OCIPhase int
-
-const (
-	CreatePhase OCIPhase = iota
-	StartPhase
-	KillPhase
-	DeletePhase
-	OtherPhase
-)
-
-func main() {
-	var err error
-
-	// TODO@zc: --help / -h
-	if len(os.Args) < 2 || os.Args[1] == "--version" {
-		printVersion()
-		os.Exit(0)
-	}
-
-	configPath, bundlePath, ociPath, ociArgs, err := parseArgs()
-	if err != nil {
-		log.Fatalf("invalid arguments: %+v", err)
-	}
-
-	conf, err := setup(configPath, bundlePath)
-	if err != nil {
-		log.Fatalf("failed to setup: %+v", err)
-	}
-	log.Infof("docker-cni running: %+v", os.Args)
-
-	//TODO: refine all log to "user story"
-
-	var rollback func()
-	if parsePhase(ociArgs) == CreatePhase {
-		if rollback, err = handleCreate(conf); err != nil {
-			log.Fatalf("failed to handle create: %+v", err)
-		} else if rollback != nil {
-			defer rollback()
-		}
-	}
-
-	err = runOCI(ociPath, ociArgs)
-	os.Exit(utils.ParseExitCode(err))
-}
-
-func parsePhase(args []string) OCIPhase {
-	for _, arg := range args {
-		switch arg {
-		case "create":
-			return CreatePhase
-		case "start":
-			return StartPhase
-		case "kill":
-			return KillPhase
-		case "delete":
-			return DeletePhase
-		}
-	}
-	return OtherPhase
-}
 
 func handleCreate(conf config.Config) (rollback func(), err error) {
 	containerMeta, err := oci.LoadContainerMeta(conf.OCISpecFilename)
@@ -105,47 +41,6 @@ func handleCreate(conf config.Config) (rollback func(), err error) {
 	return rollback, errors.Wrap(updateContainerMeta(containerMeta, netnsPath, cleanup), "failed to update oci spec")
 
 }
-
-func printVersion() {}
-
-func parseArgs() (configPath, bundlePath, ociPath string, ociArgs []string, err error) {
-	//TODO@zc: example config
-	idx := 1
-	for i, arg := range os.Args {
-		if arg == "--config" {
-			idx = i + 2
-			configPath = os.Args[i+1]
-			continue
-		}
-
-		if arg == "--runtime-path" {
-			idx = i + 2
-			ociPath = os.Args[i+1]
-			continue
-		}
-
-		if arg == "--bundle" {
-			bundlePath = os.Args[i+1]
-		}
-	}
-	ociArgs = os.Args[idx:]
-
-	if configPath == "" || ociPath == "" {
-		err = errors.Errorf("--config, --runtime-path are required: %+v", os.Args)
-	}
-	return
-}
-
-func setup(configPath, bundlePath string) (conf config.Config, err error) {
-	if conf, err = config.LoadConfig(configPath); err != nil {
-		return
-	}
-	if bundlePath != "" {
-		conf.OCISpecFilename = filepath.Join(bundlePath, "config.json")
-	}
-	return conf, conf.SetupLog()
-}
-
 func setupNetwork(conf config.Config, containerMeta oci.ContainerMeta) (netnsPath string, cleanup []*utils.Process, err error) {
 	cniPlug, err := cni.NewCNIPlugin(conf.CNIConfDir, conf.CNIBinDir)
 	if err != nil {
@@ -212,8 +107,6 @@ func runOCI(ociPath string, ociArgs []string) (err error) {
 	if err != nil {
 		return errors.Wrap(err, "failed to init process to run oci")
 	}
-	stdoutBytes, stderrBytes, err := proc.Run()
-	os.Stdout.Write(stdoutBytes)
-	os.Stderr.Write(stderrBytes)
+	_, _, err = proc.Run()
 	return err
 }
