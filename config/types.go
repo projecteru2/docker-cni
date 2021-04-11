@@ -15,6 +15,7 @@ type Config struct {
 
 	// from command line args
 	OCISpecFilename string
+	ID              string
 }
 
 func LoadConfig(path string) (config Config, err error) {

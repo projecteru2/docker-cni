@@ -12,12 +12,6 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
-func (c *ContainerMeta) ID() string {
-	// the best guess I can get, otherwise we have to count on extra env passed from docker
-	parts := strings.Split(c.Linux.CgroupsPath, "/")
-	return parts[len(parts)-1]
-}
-
 func (c *ContainerMeta) Labels() map[string]string {
 	return nil
 }
@@ -54,5 +48,5 @@ func (c *ContainerMeta) Save() (err error) {
 		return errors.WithStack(err)
 	}
 	log.Debugf("save config")
-	return errors.WithStack(ioutil.WriteFile(c.bundlePath, data, 0644))
+	return errors.WithStack(ioutil.WriteFile(c.BundlePath, data, 0644))
 }

@@ -83,12 +83,12 @@ func NewProcess(path string, args, env []string, stdio *Stdio) (_ *Process, err 
 	}, nil
 }
 
-func (p Process) Start() (err error) {
+func (p *Process) Start() (err error) {
 	log.Debugf("spawning process %+v", p.cmd)
 	return errors.WithStack(p.cmd.Start())
 }
 
-func (p Process) Wait() (err error) {
+func (p *Process) Wait() (err error) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
@@ -119,7 +119,7 @@ func ParseExitCode(err error) int {
 	return 1
 }
 
-func (p Process) Run() (stdoutBytes, stderrBytes []byte, err error) {
+func (p *Process) Run() (stdoutBytes, stderrBytes []byte, err error) {
 	if err = p.Start(); err != nil {
 		return
 	}
@@ -127,4 +127,8 @@ func (p Process) Run() (stdoutBytes, stderrBytes []byte, err error) {
 		stdoutBytes, stderrBytes = p.Stdio.StdoutBytes(), p.Stdio.StderrBytes()
 	}
 	return stdoutBytes, stderrBytes, p.Wait()
+}
+
+func (p *Process) String() string {
+	return p.cmd.String()
 }

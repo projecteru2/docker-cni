@@ -1,6 +1,8 @@
 package main
 
 import (
+	"os"
+
 	"github.com/pkg/errors"
 	"github.com/projecteru2/docker-cni/cni"
 	"github.com/projecteru2/docker-cni/config"
@@ -14,7 +16,7 @@ const (
 )
 
 func handleCreate(conf config.Config) (rollback func(), err error) {
-	containerMeta, err := oci.LoadContainerMeta(conf.OCISpecFilename)
+	containerMeta, err := oci.LoadContainerMeta(conf.ID, conf.OCISpecFilename)
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to load container meta from oci spec")
 	}
@@ -23,13 +25,10 @@ func handleCreate(conf config.Config) (rollback func(), err error) {
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to setup cni network")
 	}
-	// TODO@zc: what if in other stage
 	rollback = func() {
-		if err != nil {
-			for _, clean := range cleanup {
-				if _, _, e := clean.Run(); e != nil {
-					log.Errorf("failed to rollback: %+v", e)
-				}
+		for _, clean := range cleanup {
+			if _, _, e := clean.Run(); e != nil {
+				log.Errorf("failed to rollback %s: %+v", clean.String(), e)
 			}
 		}
 	}
@@ -41,28 +40,30 @@ func handleCreate(conf config.Config) (rollback func(), err error) {
 	return rollback, errors.Wrap(updateContainerMeta(containerMeta, netnsPath, cleanup), "failed to update oci spec")
 
 }
+
+// setupNetwork is meant to be idempotent
 func setupNetwork(conf config.Config, containerMeta oci.ContainerMeta) (netnsPath string, cleanup []*utils.Process, err error) {
 	cniPlug, err := cni.NewCNIPlugin(conf.CNIConfDir, conf.CNIBinDir)
 	if err != nil {
 		return
 	}
 
-	delCNI, err := cniPlug.Del(containerMeta.ID(), netnsPath, DefaultIfname)
+	delCNI, err := cniPlug.Del(containerMeta.ID, netnsPath, DefaultIfname)
 	if err != nil {
 		return "", nil, errors.Wrap(err, "failed to init process to delete cni")
 	}
-	delNetns, err := cniPlug.DeleteNetns(containerMeta.ID())
+	delNetns, err := cniPlug.DeleteNetns(containerMeta.ID)
 	if err != nil {
 		return "", nil, errors.Wrap(err, "failed to init process to delete netns")
 	}
 	cleanup = []*utils.Process{delCNI, delNetns}
 
-	if netnsPath, err = cniPlug.GetNetns(containerMeta.ID()); err == nil {
-		log.Warnf("netns already exists, inherit %s", containerMeta.ID())
+	if netnsPath, err = cniPlug.GetNetns(containerMeta.ID); err == nil {
+		log.Warnf("netns already exists, inherit %s", containerMeta.ID)
 		return netnsPath, cleanup, nil
 	}
 
-	netnsPath, create, err := cniPlug.CreateNetns(containerMeta.ID())
+	netnsPath, create, err := cniPlug.CreateNetns(containerMeta.ID)
 	if err != nil {
 		err = errors.Wrap(err, "failed to init process to create netns")
 		return
@@ -79,7 +80,7 @@ func setupNetwork(conf config.Config, containerMeta oci.ContainerMeta) (netnsPat
 		}
 	}()
 
-	add, err := cniPlug.Add(containerMeta.ID(), netnsPath, DefaultIfname)
+	add, err := cniPlug.Add(containerMeta.ID, netnsPath, DefaultIfname)
 	if err != nil {
 		err = errors.Wrap(err, "failed to init process to add cni")
 		return
@@ -100,13 +101,16 @@ func updateContainerMeta(containerMeta *oci.ContainerMeta, netnsPath string, cle
 }
 
 func runOCI(ociPath string, ociArgs []string) (err error) {
+	stdio := utils.NewStdio(nil)
 	proc, err := utils.NewProcess(ociPath, ociArgs,
-		nil, // env
-		nil, // stdio
+		nil,   // env
+		stdio, // stdio
 	)
 	if err != nil {
 		return errors.Wrap(err, "failed to init process to run oci")
 	}
-	_, _, err = proc.Run()
+	stdoutBytes, stderrBytes, err := proc.Run()
+	os.Stdout.Write(stdoutBytes)
+	os.Stderr.Write(stderrBytes)
 	return err
 }
