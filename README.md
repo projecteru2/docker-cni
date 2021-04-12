@@ -24,7 +24,7 @@ Notes:
 
 ### 1.1 install docker-cni binary
 
-TODO
+Download the latest binary from [release](https://github.com/projecteru2/docker-cni/releases).
 
 ### 1.2 docker-cni configuration
 

@@ -6,8 +6,6 @@ import (
 )
 
 var (
-	// NAME is app name
-	NAME = "docker-cni"
 	// VERSION is app version
 	VERSION = "unknown"
 	// REVISION is app revision

@@ -44,8 +44,7 @@ func updateContainerMeta(containerMeta *oci.ContainerMeta, netnsPath string, cle
 	for _, clean := range cleanup {
 		containerMeta.AppendPoststopHook(clean)
 	}
-	containerMeta.Save()
-	return nil
+	return containerMeta.Save()
 }
 
 func runOCI(ociPath string, ociArgs []string) (err error) {

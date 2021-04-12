@@ -98,7 +98,9 @@ func (p *Process) Wait() (err error) {
 		for {
 			select {
 			case sig := <-signals:
-				p.cmd.Process.Signal(sig)
+				if e := p.cmd.Process.Signal(sig); e != nil {
+					log.Errorf("failed to forward signal: %s", sig.String())
+				}
 			case <-ctx.Done():
 				return
 			}
