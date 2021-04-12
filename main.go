@@ -3,6 +3,7 @@ package main
 import (
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/pkg/errors"
 	"github.com/projecteru2/docker-cni/config"
@@ -35,15 +36,17 @@ func main() {
 	configPath, ociPath, ociArgs, err := parseArgs()
 	if err != nil {
 		log.Errorf("invalid arguments: %+v", err)
+		return
 	}
 
 	conf, err := setup(configPath, ociArgs)
 	if err != nil {
 		log.Errorf("failed to setup: %+v", err)
+		return
 	}
-	log.Debugf("docker-cni running: %+v", os.Args)
 
-	//TODO: refine all log to "user story"
+	log.Infof("docker-cni running: %+v", os.Args)
+	defer log.Infof("docker-cni finishing: %+v", err)
 
 	var rollback func()
 	switch parsePhase(ociArgs) {
@@ -69,7 +72,6 @@ func main() {
 	}
 
 	err = runOCI(ociPath, ociArgs)
-	log.Debugf("docker-cni finishing: %+v", err)
 }
 
 func parsePhase(args []string) OCIPhase {
@@ -91,7 +93,6 @@ func parsePhase(args []string) OCIPhase {
 func printVersion() {}
 
 func parseArgs() (configPath, ociPath string, ociArgs []string, err error) {
-	//TODO@zc: example config
 	idx := 1
 	for i, arg := range os.Args {
 		if arg == "--config" {
@@ -119,18 +120,22 @@ func setup(configPath string, ociArgs []string) (conf config.Config, err error) 
 		return
 	}
 
-	conf.ID = ociArgs[len(ociArgs)-1]
-
 	for i, args := range ociArgs {
 		if args == "--bundle" {
 			conf.OCISpecFilename = filepath.Join(ociArgs[i+1], "config.json")
-			break
 		}
-		if args == "--log" {
+		if args == "--log" && conf.OCISpecFilename == "" {
 			conf.OCISpecFilename = filepath.Join(filepath.Dir(ociArgs[i+1]), "config.json")
-			break
+		}
+		if len(args) == 64 && !strings.Contains(args, "/") { // shit, I hate this
+			conf.ID = args
 		}
 	}
 
-	return conf, conf.SetupLog()
+	if err = conf.SetupLog(); err != nil {
+		return
+	}
+
+	log.Debugf("config: %+v", conf)
+	return conf, conf.Validate()
 }

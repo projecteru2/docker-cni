@@ -9,6 +9,10 @@ import (
 	"github.com/pkg/errors"
 )
 
+const (
+	DefaultIfname = "eth0"
+)
+
 type CNIPlugin struct {
 	netnsManager
 

@@ -1,4 +1,4 @@
 cni_conf_dir: /etc/cni/net.d/
 cni_bin_dir: /opt/cni/bin/
-log_driver: journal://
+log_driver: file:///var/run/log/docker-cni.log
 log_level: debug

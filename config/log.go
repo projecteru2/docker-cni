@@ -5,7 +5,6 @@ import (
 	"os"
 	"strings"
 
-	"github.com/coreos/go-systemd/journal"
 	"github.com/pkg/errors"
 	log "github.com/sirupsen/logrus"
 )
@@ -33,26 +32,10 @@ func (c *Config) SetupLog() (err error) {
 
 func getLogger(driver string) (io.Writer, error) {
 	switch {
-	case strings.HasPrefix(driver, "journal://"):
-		if !journal.Enabled() {
-			return nil, errors.Errorf("failed to set logger: journal not enabled")
-		}
-		return newJournalLogger(), nil
 	case strings.HasPrefix(driver, "file://"):
 		return newFileLogger(strings.TrimPrefix(driver, "file://"))
 	}
 	return newFileLogger("/dev/null")
-}
-
-type journalLogger struct{}
-
-func newJournalLogger() *journalLogger {
-	//TODO@zc
-	return &journalLogger{}
-}
-
-func (l *journalLogger) Write(p []byte) (int, error) {
-	return len(p), errors.WithStack(journal.Send(string(p), journal.PriInfo, map[string]string{"UNIT": "docker-cni"}))
 }
 
 type fileLogger struct {
