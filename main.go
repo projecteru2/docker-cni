@@ -27,9 +27,13 @@ func main() {
 		os.Exit(utils.ParseExitCode(err))
 	}()
 
-	// TODO@zc: --help / -h
-	if len(os.Args) < 2 || os.Args[1] == "--version" || os.Args[1] == "-v" {
+	if os.Args[len(os.Args)-1] == "--version" || os.Args[len(os.Args)-1] == "-v" {
 		printVersion()
+		return
+	}
+
+	if os.Args[len(os.Args)-1] == "--help" || os.Args[len(os.Args)-1] == "-h" {
+		printHelp()
 		return
 	}
 
@@ -89,8 +93,6 @@ func parsePhase(args []string) OCIPhase {
 	}
 	return OtherPhase
 }
-
-func printVersion() {}
 
 func parseArgs() (configPath, ociPath string, ociArgs []string, err error) {
 	idx := 1
