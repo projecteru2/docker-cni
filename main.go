@@ -5,7 +5,8 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/pkg/errors"
+	flag "github.com/spf13/pflag"
+
 	"github.com/projecteru2/docker-cni/config"
 	"github.com/projecteru2/docker-cni/utils"
 	log "github.com/sirupsen/logrus"
@@ -27,19 +28,13 @@ func main() {
 		os.Exit(utils.ParseExitCode(err))
 	}()
 
-	if os.Args[len(os.Args)-1] == "--version" || os.Args[len(os.Args)-1] == "-v" {
-		printVersion()
-		return
-	}
-
-	if os.Args[len(os.Args)-1] == "--help" || os.Args[len(os.Args)-1] == "-h" {
-		printHelp()
-		return
-	}
-
-	configPath, ociPath, ociArgs, err := parseArgs()
+	version, configPath, ociPath, ociArgs := parseArgs()
 	if err != nil {
 		log.Errorf("invalid arguments: %+v", err)
+		return
+	}
+	if version {
+		printVersion()
 		return
 	}
 
@@ -94,27 +89,12 @@ func parsePhase(args []string) OCIPhase {
 	return OtherPhase
 }
 
-func parseArgs() (configPath, ociPath string, ociArgs []string, err error) {
-	idx := 1
-	for i, arg := range os.Args {
-		if arg == "--config" {
-			idx = i + 2
-			configPath = os.Args[i+1]
-			continue
-		}
-
-		if arg == "--runtime-path" {
-			idx = i + 2
-			ociPath = os.Args[i+1]
-			continue
-		}
-	}
-	ociArgs = os.Args[idx:]
-
-	if configPath == "" || ociPath == "" {
-		err = errors.Errorf("--config, --runtime-path are required: %+v", os.Args)
-	}
-	return
+func parseArgs() (version bool, configPath, ociPath string, ociArgs []string) {
+	flag.BoolVarP(&version, "version", "v", false, "version message")
+	flag.StringVar(&configPath, "config", "/etc/docker/cni.yaml", "docker-cni configure path")
+	flag.StringVar(&ociPath, "runtime-path", "/usr/bin/runc", "oci runtime path")
+	flag.Parse()
+	return version, configPath, ociPath, flag.Args()
 }
 
 func setup(configPath string, ociArgs []string) (conf config.Config, err error) {

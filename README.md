@@ -56,7 +56,9 @@ Add the additional `runtime` in docker daemon configure, which is usually locate
                 "--config",
                 "/etc/docker/cni.yaml",
                 "--runtime-path",
-                "/usr/bin/runc"]
+                "/usr/bin/runc",
+                "--"
+            ]
         }
     }
 }
