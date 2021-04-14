@@ -50,17 +50,27 @@ func main() {
 	var rollback func()
 	switch parsePhase(ociArgs) {
 
+	// CreatePhase creates netns, calls "cni-add", inject poststop hooks
 	case CreatePhase:
 		if rollback, err = handleCreate(conf); err != nil {
 			log.Errorf("failed to handle create: %+v", err)
 			return
 		}
 
+	// StartPhase checks the netns, returns rollback function
 	case StartPhase:
 		if rollback, err = handleStart(conf); err != nil {
 			log.Errorf("failed to handle start: %+v", err)
 			return
 		}
+
+	// DeletePhase retrieves oci log
+	case DeletePhase:
+		defer func() {
+			if e := postHandleDelete(conf); e != nil {
+				log.Errorf("failed to retrieve oci poststop log: %+v", err)
+			}
+		}()
 	}
 	if rollback != nil {
 		defer func() {
@@ -106,8 +116,11 @@ func setup(configPath string, ociArgs []string) (conf config.Config, err error) 
 		if args == "--bundle" {
 			conf.OCISpecFilename = filepath.Join(ociArgs[i+1], "config.json")
 		}
-		if args == "--log" && conf.OCISpecFilename == "" {
-			conf.OCISpecFilename = filepath.Join(filepath.Dir(ociArgs[i+1]), "config.json")
+		if args == "--log" {
+			conf.OCILogFilename = ociArgs[i+1]
+			if conf.OCISpecFilename == "" {
+				conf.OCISpecFilename = filepath.Join(filepath.Dir(ociArgs[i+1]), "config.json")
+			}
 		}
 		if len(args) == 64 && !strings.Contains(args, "/") { // shit, I hate this
 			conf.ID = args
