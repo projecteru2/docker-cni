@@ -15,6 +15,7 @@ type Config struct {
 
 	// from command line args
 	OCISpecFilename string
+	OCILogFilename  string
 	ID              string
 }
 
