@@ -12,8 +12,9 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
-func (c *ContainerMeta) Labels() map[string]string {
-	return nil
+func (c *ContainerMeta) Env() []string {
+	// 总不能 c.Spec.Process == nil 而 panic 吧
+	return c.Spec.Process.Env
 }
 
 func (c *ContainerMeta) UpdateNetns(netnsPath string) {

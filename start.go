@@ -14,7 +14,7 @@ func handleStart(conf config.Config) (rollback func(), err error) {
 	if err != nil {
 		return
 	}
-	cniPlug, err := cni.NewCNIPlugin(conf.CNIConfDir, conf.CNIBinDir)
+	cniPlug, err := cni.NewCNIPlugin(conf.CNIWrapper, conf.CNIConfDir, conf.CNIBinDir, containerMeta.Env())
 	if err != nil {
 		return
 	}
