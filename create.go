@@ -1,66 +1,79 @@
 package main
 
 import (
-	"os"
+	"encoding/json"
+	"io/ioutil"
+	"path/filepath"
+	"sort"
 
-	"github.com/projecteru2/docker-cni/cni"
+	"github.com/pkg/errors"
 	"github.com/projecteru2/docker-cni/config"
 	"github.com/projecteru2/docker-cni/oci"
-	"github.com/projecteru2/docker-cni/utils"
-	log "github.com/sirupsen/logrus"
 )
 
-func handleCreate(conf config.Config) (rollback func(), err error) {
-	containerMeta, err := oci.LoadContainerMeta(conf.ID, conf.OCISpecFilename)
-	if err != nil {
-		return nil, err
-	}
-	cniPlug, err := cni.NewCNIPlugin(conf.CNIConfDir, conf.CNIBinDir)
-	if err != nil {
-		return
-	}
-	netnsPath, cleanup, err := cniPlug.SetupNetwork(conf, containerMeta)
-	if err != nil {
-		return nil, err
-	}
-	rollback = func() {
-		for _, clean := range cleanup {
-			if _, _, e := clean.Run(); e != nil {
-				log.Errorf("failed to rollback %s: %+v", clean.String(), e)
-			}
-		}
-	}
-	defer func() {
-		if err != nil {
-			rollback()
-		}
-	}()
-	return rollback, updateContainerMeta(containerMeta, netnsPath, cleanup)
-
+type CNISpec struct {
+	Type string `json:"type"`
 }
 
-func updateContainerMeta(containerMeta *oci.ContainerMeta, netnsPath string, cleanup []*utils.Process) (err error) {
-	containerMeta.UpdateNetns(netnsPath)
-	for _, clean := range cleanup {
-		containerMeta.AppendPoststopHook(clean)
+func handleCreate(conf config.Config) (err error) {
+	containerMeta, err := oci.LoadContainerMeta(conf.OCISpecFilename)
+	if err != nil {
+		return err
 	}
-	return containerMeta.Save()
-}
 
-func runOCI(ociPath string, ociArgs []string) (err error) {
-	proc, err := utils.NewProcess(ociPath, ociArgs,
-		nil,                 // env
-		utils.NewStdio(nil), // stdio
+	cniFilename, cniConfigFilename, err := findCNI(conf.CNIConfDir, conf.CNIBinDir)
+	if err != nil {
+		return err
+	}
+
+	containerMeta.AppendHook("prestart",
+		conf.SelfPathname,
+		[]string{conf.SelfPathname, "cni", "--cni", cniFilename, "--cni-config", cniConfigFilename}, // args
+		[]string{
+			"CNI_IFNAME=eth0",
+			"CNI_PATH=" + conf.CNIBinDir,
+			"CNI_COMMAND=ADD",
+		}, // env
 	)
+
+	containerMeta.AppendHook("poststop",
+		conf.SelfPathname,
+		[]string{conf.SelfPathname, "cni", "--cni", cniFilename, "--cni-config", cniConfigFilename}, // args
+		[]string{
+			"CNI_IFNAME=eth0",
+			"CNI_PATH=" + conf.CNIBinDir,
+			"CNI_COMMAND=DEL",
+		}, // env
+	)
+
+	return containerMeta.Save()
+
+}
+
+func findCNI(specDir, binDir string) (cniFilename, cniConfigFilename string, err error) {
+	// walk thru the config_dir and get the first configure file in lexicographic order, the same behavior as kubelet: https://kubernetes.io/docs/concepts/extend-kubernetes/compute-storage-net/network-plugins/#cni
+
+	files, err := ioutil.ReadDir(specDir)
 	if err != nil {
-		return
+		return "", "", errors.WithStack(err)
 	}
-	stdoutBytes, stderrBytes, err := proc.Run()
-	if _, e := os.Stdout.Write(stdoutBytes); e != nil {
-		log.Errorf("failed to forward stdout from oci runtime: %+v", e)
+
+	if len(files) == 0 {
+		return "", "", errors.Errorf("cni configure not found: %s", specDir)
 	}
-	if _, e := os.Stderr.Write(stderrBytes); e != nil {
-		log.Errorf("failed to forward stderr from oci runtime: %+v", e)
+
+	sort.Slice(files, func(i, j int) bool { return files[i].Name() < files[j].Name() })
+	cniConfigFilename = files[0].Name()
+
+	content, err := ioutil.ReadFile(filepath.Join(specDir, cniConfigFilename))
+	if err != nil {
+		return "", "", errors.WithStack(err)
 	}
-	return err
+
+	spec := &CNISpec{}
+	if err = json.Unmarshal(content, spec); err != nil {
+		return "", "", errors.WithStack(err)
+	}
+
+	return filepath.Join(binDir, spec.Type), cniConfigFilename, nil
 }
