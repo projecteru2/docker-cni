@@ -75,5 +75,5 @@ func findCNI(specDir, binDir string) (cniFilename, cniConfigFilename string, err
 		return "", "", errors.WithStack(err)
 	}
 
-	return filepath.Join(binDir, spec.Type), cniConfigFilename, nil
+	return filepath.Join(binDir, spec.Type), filepath.Join(specDir, cniConfigFilename), nil
 }

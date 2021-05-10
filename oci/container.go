@@ -6,33 +6,23 @@ import (
 
 	"github.com/opencontainers/runtime-spec/specs-go"
 	"github.com/pkg/errors"
-	log "github.com/sirupsen/logrus"
 )
 
-func (c *ContainerMeta) Labels() map[string]string {
-	return nil
-}
-
-func (c *ContainerMeta) UpdateNetns(netnsPath string) {
-	for idx, ns := range c.Linux.Namespaces {
-		if ns.Type == specs.NetworkNamespace {
-			if ns.Path != "" {
-				log.Warnf("netns path existed and have been replaced: %s", ns.Path)
-			}
-			c.Linux.Namespaces[idx] = specs.LinuxNamespace{
-				Type: specs.NetworkNamespace,
-				Path: netnsPath,
-			}
-		}
-	}
-}
-
 func (c *ContainerMeta) AppendHook(phase, pathname string, args, env []string) {
-	c.Hooks.Poststop = append(c.Hooks.Poststop, specs.Hook{
+	if c.Hooks == nil {
+		c.Hooks = &specs.Hooks{}
+	}
+	newHook := specs.Hook{
 		Path: pathname,
 		Args: args,
 		Env:  env,
-	})
+	}
+	switch phase {
+	case "prestart":
+		c.Hooks.Prestart = append(c.Hooks.Prestart, newHook)
+	case "poststop":
+		c.Hooks.Poststop = append(c.Hooks.Poststop, newHook)
+	}
 }
 
 func (c *ContainerMeta) Save() (err error) {

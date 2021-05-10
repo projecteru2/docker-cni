@@ -32,7 +32,8 @@ func main() {
 	}
 
 	app := &cli.App{
-		Name: "docker-cni",
+		Name:    "docker-cni",
+		Version: VERSION,
 		Commands: []*cli.Command{
 			{
 				Name:  "oci",
@@ -58,9 +59,9 @@ func main() {
 						Usage: "cni configure filename",
 					},
 					&cli.StringFlag{
-						Name:        "logfile",
-						Usage:       "record of cni stdout and stderr",
-						DefaultText: "/var/log/cni.log",
+						Name:  "log",
+						Usage: "record of cni stdout and stderr",
+						Value: "/var/log/cni.log",
 					},
 				},
 				Action: runCNI,
@@ -79,12 +80,6 @@ func parsePhase(args []string) OCIPhase {
 		switch arg {
 		case "create":
 			return CreatePhase
-		case "start":
-			return StartPhase
-		case "kill":
-			return KillPhase
-		case "delete":
-			return DeletePhase
 		}
 	}
 	return OtherPhase
@@ -98,6 +93,9 @@ func setup(configPath string, ociArgs []string) (conf config.Config, err error) 
 	for i, args := range ociArgs {
 		if args == "--bundle" {
 			conf.OCISpecFilename = filepath.Join(ociArgs[i+1], "config.json")
+		}
+		if args == "--log" && conf.OCISpecFilename == "" {
+			conf.OCISpecFilename = filepath.Join(filepath.Dir(ociArgs[i+1]), "config.json")
 		}
 	}
 
@@ -129,17 +127,20 @@ func runOCI(c *cli.Context) (err error) {
 		}
 	}
 
+	args := []string{conf.OCIBin}
+	args = append(args, c.Args().Slice()...)
+	syscall.Exec(conf.OCIBin, args, os.Environ())
 	return
 }
 
 func runCNI(c *cli.Context) error {
 	stateBuf, err := ioutil.ReadAll(os.Stdin)
 	if err != nil {
-		return errors.Wrapf(err, "failed to read stdin: %+v", err)
+		return errors.WithStack(err)
 	}
 	var state specs.State
 	if err = json.Unmarshal(stateBuf, &state); err != nil {
-		return errors.Wrapf(err, "failed to unmarshal state json: %+v", err)
+		return errors.WithStack(err)
 	}
 
 	env := []string{
@@ -156,21 +157,21 @@ func runCNI(c *cli.Context) error {
 
 	file, err := os.Open(c.String("cni-config"))
 	if err != nil {
-		return errors.Wrapf(err, "failed to open cni config %s: %+v", c.String("cni-config"), err)
+		return errors.WithStack(err)
 	}
 	if err := syscall.Dup2(int(file.Fd()), 0); err != nil {
-		return errors.Wrapf(err, "failed to dup cni config to stdin: %+v", err)
+		return errors.WithStack(err)
 	}
 
-	if file, err = os.OpenFile(c.String("logfile"), os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644); err != nil {
-		return errors.Wrapf(err, "failed to open logfile %s: %+v", c.String("logfile"), err)
+	if file, err = os.OpenFile(c.String("log"), os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644); err != nil {
+		return errors.WithStack(err)
 	}
 	if err := syscall.Dup2(int(file.Fd()), 1); err != nil {
-		return errors.Wrapf(err, "failed to dup logfile to stdout: %v", err)
+		return errors.WithStack(err)
 	}
 	if err := syscall.Dup2(int(file.Fd()), 2); err != nil {
-		return errors.Wrapf(err, "failed to dup logfile to stderr: %v", err)
+		return errors.WithStack(err)
 	}
 
-	return syscall.Exec(c.String("cni"), []string{c.String("cni")}, env)
+	return errors.WithStack(syscall.Exec(c.String("cni"), []string{c.String("cni")}, env))
 }
