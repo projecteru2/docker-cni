@@ -30,10 +30,11 @@ Download the latest binary from [release](https://github.com/projecteru2/docker-
 
 ```shell
 mkdir -p /etc/docker/
-cat <<!
+cat <<! >/etc/docker/cni.yaml
+oci_bin: /usr/bin/runc
 cni_conf_dir: /etc/cni/net.d/
 cni_bin_dir: /opt/cni/bin/
-log_driver: file:///var/run/log/docker-cni.log
+log_driver: file:///var/log/docker-cni.log
 log_level: debug
 !
 ```
@@ -46,19 +47,13 @@ You may revise the aforementioned configure with YOUR `cni_conf_dir` and `cni_bi
 
 Add the additional `runtime` in docker daemon configure, which is usually located at `/etc/docker/daemon.json`:
 
-```
+```json
 {
     ...
     "runtimes": {
         "cni": {
             "path": "/usr/local/bin/docker-cni",
-            "runtimeArgs": [
-                "--config",
-                "/etc/docker/cni.yaml",
-                "--runtime-path",
-                "/usr/bin/runc",
-                "--"
-            ]
+            "runtimeArgs": [ "oci", "--config", "/etc/docker/cni.yaml", "--" ]
         }
     }
 }
@@ -66,13 +61,13 @@ Add the additional `runtime` in docker daemon configure, which is usually locate
 
 ### 2.2 restart dockerd
 
-```
-systemctl restart dockerd
+```shell
+systemctl restart docker
 ```
 
 ## 3. Create docker container with CNI
 
-```
+```shell
 docker run -td --runtime cni --net none bash bash
 ```
 
