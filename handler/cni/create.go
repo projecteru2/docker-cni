@@ -1,4 +1,4 @@
-package main
+package cni
 
 import (
 	"encoding/json"
@@ -15,7 +15,7 @@ type CNISpec struct {
 	Type string `json:"type"`
 }
 
-func handleCreate(conf config.Config) (err error) {
+func (a CNIHandler) HandleCreate(conf config.Config) (err error) {
 	containerMeta, err := oci.LoadContainerMeta(conf.OCISpecFilename)
 	if err != nil {
 		return err
