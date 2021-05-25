@@ -9,16 +9,20 @@ import (
 )
 
 type Config struct {
-	OCIBin     string `yaml:"oci_bin" default:"/usr/bin/runc"`
+	OCIBin string `yaml:"oci_bin" default:"/usr/bin/runc"`
+
 	CNIConfDir string `yaml:"cni_conf_dir" default:"/etc/cni/net.d/"`
 	CNIBinDir  string `yaml:"cni_bin_dir" default:"/opt/cni/bin/"`
-	LogDriver  string `yaml:"log_driver" default:"file:///var/run/log/docker-cni.log"`
-	LogLevel   string `yaml:"log_level" default:"info"`
+	CNIIfname  string `yaml:"cni_ifname" default:"eth0"`
+	CNILog     string `yaml:"cni_log" default:"/var/log/cni.log"`
+
+	LogDriver string `yaml:"log_driver" default:"file:///var/log/docker-cni.log"`
+	LogLevel  string `yaml:"log_level" default:"info"`
 
 	// from command line args
+	Filename        string
+	BinPathname     string
 	OCISpecFilename string
-
-	SelfPathname string
 }
 
 func LoadConfig(path string) (conf Config, err error) {
@@ -29,7 +33,8 @@ func LoadConfig(path string) (conf Config, err error) {
 	if err = yaml.Unmarshal(data, &conf); err != nil {
 		return conf, errors.WithStack(err)
 	}
-	conf.SelfPathname = os.Args[0]
+	conf.BinPathname = os.Args[0]
+	conf.Filename = path
 	return
 }
 

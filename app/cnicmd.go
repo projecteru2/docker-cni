@@ -5,14 +5,17 @@ import (
 	"fmt"
 	"io/ioutil"
 	"os"
+	"strings"
 	"syscall"
 
 	"github.com/opencontainers/runtime-spec/specs-go"
 	"github.com/pkg/errors"
+	"github.com/projecteru2/docker-cni/cni"
+	"github.com/projecteru2/docker-cni/config"
 	"github.com/urfave/cli/v2"
 )
 
-func runCNI(c *cli.Context) error {
+func runCNI(c *cli.Context) (err error) {
 	stateBuf, err := ioutil.ReadAll(os.Stdin)
 	if err != nil {
 		return errors.WithStack(err)
@@ -22,11 +25,21 @@ func runCNI(c *cli.Context) error {
 		return errors.WithStack(err)
 	}
 
+	conf, err := config.LoadConfig(c.String("config"))
+	if err != nil {
+		return
+	}
+
+	cniFilename, cniConfigFilename, err := cni.FindCNI(conf.CNIConfDir, conf.CNIBinDir)
+	if err != nil {
+		return
+	}
+
 	env := []string{
-		"CNI_IFNAME=" + os.Getenv("CNI_IFNAME"),
-		"CNI_PATH=" + os.Getenv("CNI_PATH"),
+		"CNI_IFNAME=" + conf.CNIIfname,
+		"CNI_PATH=" + conf.CNIBinDir,
 		"CNI_ARGS=" + os.Getenv("CNI_ARGS"),
-		"CNI_COMMAND=" + os.Getenv("CNI_COMMAND"),
+		"CNI_COMMAND=" + strings.ToUpper(c.String("command")),
 		"CNI_CONTAINERID=" + state.ID,
 	}
 
@@ -34,7 +47,7 @@ func runCNI(c *cli.Context) error {
 		env = append(env, "CNI_NETNS="+fmt.Sprintf("/proc/%d/ns/net", state.Pid))
 	}
 
-	file, err := os.Open(c.String("cni-config"))
+	file, err := os.Open(cniConfigFilename)
 	if err != nil {
 		return errors.WithStack(err)
 	}
@@ -42,7 +55,7 @@ func runCNI(c *cli.Context) error {
 		return errors.WithStack(err)
 	}
 
-	if file, err = os.OpenFile(c.String("log"), os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644); err != nil {
+	if file, err = os.OpenFile(conf.CNILog, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644); err != nil {
 		return errors.WithStack(err)
 	}
 	if err := syscall.Dup2(int(file.Fd()), 1); err != nil {
@@ -52,5 +65,5 @@ func runCNI(c *cli.Context) error {
 		return errors.WithStack(err)
 	}
 
-	return errors.WithStack(syscall.Exec(c.String("cni"), []string{c.String("cni")}, env))
+	return errors.WithStack(syscall.Exec(cniFilename, []string{cniFilename}, env))
 }

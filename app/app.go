@@ -32,17 +32,13 @@ func NewApp(handler handler.Handler, printVersion func()) *cli.App {
 				Usage: "run as cni wrapper",
 				Flags: []cli.Flag{
 					&cli.StringFlag{
-						Name:  "cni",
-						Usage: "cni binary filename",
+						Name:        "config",
+						Usage:       "cni configure filename",
+						DefaultText: "/etc/docker/cni.yaml",
 					},
 					&cli.StringFlag{
-						Name:  "cni-config",
-						Usage: "cni configure filename",
-					},
-					&cli.StringFlag{
-						Name:  "log",
-						Usage: "record of cni stdout and stderr",
-						Value: "/var/log/cni.log",
+						Name:  "command",
+						Usage: "cni command",
 					},
 				},
 				Action: runCNI,
