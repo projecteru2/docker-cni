@@ -3,6 +3,7 @@ package oci
 import (
 	"encoding/json"
 	"io/ioutil"
+	"strings"
 
 	"github.com/opencontainers/runtime-spec/specs-go"
 	"github.com/pkg/errors"
@@ -31,4 +32,18 @@ func (c *ContainerMeta) Save() (err error) {
 		return errors.WithStack(err)
 	}
 	return errors.WithStack(ioutil.WriteFile(c.BundlePath, data, 0644))
+}
+
+func (c ContainerMeta) SpecificIP() string {
+	for _, env := range c.Process.Env {
+		parts := strings.Split(env, "=")
+		if len(parts) == 2 && parts[0] == "ipv4" && parts[1] != "" {
+			return parts[1]
+		}
+	}
+	return ""
+}
+
+func (c ContainerMeta) RequiresSpecificIP() bool {
+	return c.SpecificIP() != ""
 }

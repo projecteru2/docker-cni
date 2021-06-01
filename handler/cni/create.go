@@ -16,10 +16,14 @@ func (h CNIHandler) HandleCreate(conf config.Config, containerMeta *oci.Containe
 }
 
 func (h CNIHandler) AddCNIStartHook(conf config.Config, containerMeta *oci.ContainerMeta) (err error) {
+	env := []string{}
+	if containerMeta.RequiresSpecificIP() {
+		env = append(env, "CNI_ARGS=IP="+containerMeta.SpecificIP())
+	}
 	containerMeta.AppendHook("prestart",
 		conf.BinPathname,
 		[]string{conf.BinPathname, "cni", "--config", conf.Filename, "--command", "add"}, // args
-		nil, // envs
+		env, // envs
 	)
 	return
 }
