@@ -41,7 +41,7 @@ func NewApp(handler handler.Handler, printVersion func()) *cli.App {
 						Usage: "cni command",
 					},
 				},
-				Action: runCNI,
+				Action: runCNI(handler),
 			},
 		},
 	}
