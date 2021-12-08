@@ -37,7 +37,7 @@ func (c *ContainerMeta) Save() (err error) {
 func (c ContainerMeta) SpecificIP() string {
 	for _, env := range c.Process.Env {
 		parts := strings.Split(env, "=")
-		if len(parts) == 2 && parts[0] == "ipv4" && parts[1] != "" {
+		if len(parts) == 2 && parts[0] == "IPV4" && parts[1] != "" {
 			return parts[1]
 		}
 	}
@@ -46,4 +46,18 @@ func (c ContainerMeta) SpecificIP() string {
 
 func (c ContainerMeta) RequiresSpecificIP() bool {
 	return c.SpecificIP() != ""
+}
+
+func (c ContainerMeta) SpecificIPPool() string {
+	for _, env := range c.Process.Env {
+		parts := strings.Split(env, "=")
+		if len(parts) == 2 && parts[0] == "IPPOOL" && parts[1] != "" {
+			return parts[1]
+		}
+	}
+	return ""
+}
+
+func (c ContainerMeta) RequiresSpecificIPPool() bool {
+	return c.SpecificIPPool() != ""
 }

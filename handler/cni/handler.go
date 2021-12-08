@@ -7,14 +7,14 @@ import (
 
 type CNIHandler struct{}
 
-func (a CNIHandler) HandleStart(_ config.Config, __ *oci.ContainerMeta) (err error) {
+func (a *CNIHandler) HandleStart(_ config.Config, __ *oci.ContainerMeta) (err error) {
 	return
 }
 
-func (a CNIHandler) HandleDelete(_ config.Config, __ *oci.ContainerMeta) (err error) {
+func (a *CNIHandler) HandleDelete(_ config.Config, __ *oci.ContainerMeta) (err error) {
 	return
 }
 
-func (a CNIHandler) HandleCNIConfig(conf []byte) (newConf []byte, err error) {
+func (a *CNIHandler) HandleCNIConfig(conf []byte) (newConf []byte, err error) {
 	return conf, nil
 }

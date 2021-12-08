@@ -9,7 +9,7 @@ import (
 )
 
 func main() {
-	app := app.NewApp(cni.CNIHandler{}, printVersion)
+	app := app.NewApp(&cni.CNIHandler{}, printVersion)
 	if err := app.Run(os.Args); err != nil {
 		fmt.Printf("Error running docker-cni: %+v\n", err)
 		os.Exit(-1)
