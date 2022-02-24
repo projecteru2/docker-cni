@@ -26,7 +26,9 @@ func (h *CNIHandler) AddCNIStartHook(conf config.Config, containerMeta *oci.Cont
 	if containerMeta.RequiresSpecificIP() {
 		cniArgs = append(cniArgs, "IP="+containerMeta.SpecificIP())
 	}
-	env = append(env, "CNI_ARGS="+strings.Join(cniArgs, ";"))
+	if len(cniArgs) != 0 {
+		env = append(env, "CNI_ARGS="+strings.Join(cniArgs, ";"))
+	}
 	containerMeta.AppendHook("prestart",
 		conf.BinPathname,
 		[]string{conf.BinPathname, "cni", "--config", conf.Filename, "--command", "add"}, // args
