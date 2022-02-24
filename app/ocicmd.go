@@ -14,18 +14,20 @@ import (
 
 func runOCI(handler handler.Handler) func(*cli.Context) error {
 	return func(c *cli.Context) (err error) {
+		defer func() {
+			if err != nil {
+				log.Errorf("[oci] failed to preceed: %+v", err)
+			}
+		}()
+
 		configPath, ociArgs := c.String("config"), c.Args().Slice()
 
 		conf, err := setup(configPath, ociArgs)
 		if err != nil {
-			log.Errorf("failed to setup: %+v", err)
 			return
 		}
 
-		log.Infof("docker-cni running: %+v", os.Args)
-		defer func() {
-			log.Infof("docker-cni finishing: %+v", err)
-		}()
+		log.Infof("[oci] docker-cni running: %+v", os.Args)
 
 		containerMeta, err := oci.LoadContainerMeta(conf.OCISpecFilename)
 		if err != nil {
@@ -72,6 +74,5 @@ func setup(configPath string, ociArgs []string) (conf config.Config, err error) 
 		return
 	}
 
-	log.Debugf("config: %+v", conf)
 	return conf, conf.Validate()
 }

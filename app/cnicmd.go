@@ -13,11 +13,27 @@ import (
 	"github.com/projecteru2/docker-cni/cni"
 	"github.com/projecteru2/docker-cni/config"
 	"github.com/projecteru2/docker-cni/handler"
+	log "github.com/sirupsen/logrus"
 	"github.com/urfave/cli/v2"
 )
 
 func runCNI(handler handler.Handler) func(*cli.Context) error {
 	return func(c *cli.Context) (err error) {
+		defer func() {
+			if err != nil {
+				log.Errorf("[hook] failed to preceed: %+v", err)
+			}
+		}()
+
+		conf, err := config.LoadConfig(c.String("config"))
+		if err != nil {
+			return errors.WithStack(err)
+		}
+
+		if err = conf.SetupLog(); err != nil {
+			return errors.WithStack(err)
+		}
+
 		stateBuf, err := ioutil.ReadAll(os.Stdin)
 		if err != nil {
 			return errors.WithStack(err)
@@ -25,11 +41,6 @@ func runCNI(handler handler.Handler) func(*cli.Context) error {
 		var state specs.State
 		if err = json.Unmarshal(stateBuf, &state); err != nil {
 			return errors.WithStack(err)
-		}
-
-		conf, err := config.LoadConfig(c.String("config"))
-		if err != nil {
-			return
 		}
 
 		cniFilename, cniConfigFilename, err := cni.FindCNI(conf.CNIConfDir, conf.CNIBinDir)
@@ -79,6 +90,7 @@ func runCNI(handler handler.Handler) func(*cli.Context) error {
 			return errors.WithStack(err)
 		}
 
+		log.Infof("[hook] cni running: %+v %s", strings.Join(env, " "), cniFilename)
 		return errors.WithStack(syscall.Exec(cniFilename, []string{cniFilename}, env))
 	}
 }
