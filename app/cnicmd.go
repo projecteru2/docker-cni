@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"io/ioutil"
 	"os"
-	"strings"
 	"syscall"
 
 	"github.com/opencontainers/runtime-spec/specs-go"
@@ -43,42 +42,6 @@ func runCNI(handler handler.Handler) func(*cli.Context) error {
 			return errors.WithStack(err)
 		}
 
-		cniFilename, cniConfigFilename, err := cni.FindCNI(conf.CNIConfDir, conf.CNIBinDir)
-		if err != nil {
-			return
-		}
-
-		env := []string{
-			"CNI_IFNAME=" + conf.CNIIfname,
-			"CNI_PATH=" + conf.CNIBinDir,
-			"CNI_ARGS=" + os.Getenv("CNI_ARGS"),
-			"CNI_COMMAND=" + strings.ToUpper(c.String("command")),
-			"CNI_CONTAINERID=" + state.ID,
-		}
-
-		if state.Pid != 0 {
-			env = append(env, "CNI_NETNS="+fmt.Sprintf("/proc/%d/ns/net", state.Pid))
-		}
-
-		cniConfig, err := os.ReadFile(cniConfigFilename)
-		if err != nil {
-			return errors.WithStack(err)
-		}
-		if cniConfig, err = handler.HandleCNIConfig(cniConfig); err != nil {
-			return errors.WithStack(err)
-		}
-		r, w, err := os.Pipe()
-		if err != nil {
-			return errors.WithStack(err)
-		}
-		if _, err = w.Write(cniConfig); err != nil {
-			return errors.WithStack(err)
-		}
-		defer w.Close()
-		if err := syscall.Dup2(int(r.Fd()), 0); err != nil {
-			return errors.WithStack(err)
-		}
-
 		file, err := os.OpenFile(conf.CNILog, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
 		if err != nil {
 			return errors.WithStack(err)
@@ -90,7 +53,24 @@ func runCNI(handler handler.Handler) func(*cli.Context) error {
 			return errors.WithStack(err)
 		}
 
-		log.Infof("[hook] cni running: %+v %s", strings.Join(env, " "), cniFilename)
-		return errors.WithStack(syscall.Exec(cniFilename, []string{cniFilename}, env))
+		netns := ""
+		if state.Pid != 0 {
+			netns = fmt.Sprintf("/proc/%d/ns/net", state.Pid)
+		}
+
+		cniToolConfig := cni.CNIToolConfig{
+			CNIPath:     conf.CNIBinDir,
+			NetConfPath: conf.CNIConfDir,
+			NetNS:       netns,
+			Args:        os.Getenv("CNI_ARGS"),
+			IfName:      conf.CNIIfname,
+			Cmd:         c.String("command"),
+			ContainerID: state.ID,
+			Handler:     handler.HandleCNIConfig,
+		}
+
+		log.Infof("[hook] docker-cni running: %+v", cniToolConfig)
+		err = cni.Run(cniToolConfig)
+		return errors.WithStack(err)
 	}
 }
