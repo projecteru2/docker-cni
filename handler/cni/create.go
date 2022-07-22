@@ -19,7 +19,7 @@ func (h *CNIHandler) HandleCreate(conf config.Config, containerMeta *oci.Contain
 
 func (h *CNIHandler) AddCNIStartHook(conf config.Config, containerMeta *oci.ContainerMeta) (err error) {
 	env := []string{}
-	cniArgs := []string{}
+	cniArgs := []string{"IgnoreUnknown=true"}
 	if containerMeta.RequiresSpecificIPPool() {
 		cniArgs = append(cniArgs, "IPPOOL="+containerMeta.SpecificIPPool())
 	}
