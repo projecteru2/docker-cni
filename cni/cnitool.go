@@ -3,6 +3,7 @@ package cni
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"io/ioutil"
 	"path/filepath"
@@ -21,14 +22,15 @@ const (
 
 // CNIToolConfig .
 type CNIToolConfig struct {
-	CNIPath     string `json:"cni_path"`
-	NetConfPath string `json:"net_conf_path"`
-	NetNS       string `json:"net_ns"`
-	Args        string `json:"args"`
-	IfName      string `json:"if_name"`
-	Cmd         string `json:"cmd"`
-	ContainerID string `json:"container_id"`
-	Handler     func([]byte) ([]byte, error)
+	CNIPath        string `json:"cni_path"`
+	NetConfPath    string `json:"net_conf_path"`
+	NetNS          string `json:"net_ns"`
+	Args           string `json:"args"`
+	CapabilityArgs string `json:"capability_args"`
+	IfName         string `json:"if_name"`
+	Cmd            string `json:"cmd"`
+	ContainerID    string `json:"container_id"`
+	Handler        func([]byte) ([]byte, error)
 }
 
 func parseArgs(args string) ([][2]string, error) {
@@ -144,13 +146,21 @@ func Run(config CNIToolConfig) error {
 		}
 	}
 
+	var capabilityArgs map[string]interface{}
+	if len(config.CapabilityArgs) > 0 {
+		if err = json.Unmarshal([]byte(config.CapabilityArgs), &capabilityArgs); err != nil {
+			return err
+		}
+	}
+
 	cninet := libcni.NewCNIConfig(filepath.SplitList(config.CNIPath), nil)
 
 	rt := &libcni.RuntimeConf{
-		ContainerID: config.ContainerID,
-		NetNS:       config.NetNS,
-		IfName:      config.IfName,
-		Args:        cniArgs,
+		ContainerID:    config.ContainerID,
+		NetNS:          config.NetNS,
+		IfName:         config.IfName,
+		Args:           cniArgs,
+		CapabilityArgs: capabilityArgs,
 	}
 
 	switch config.Cmd {

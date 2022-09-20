@@ -9,11 +9,12 @@ import (
 
 	"github.com/opencontainers/runtime-spec/specs-go"
 	"github.com/pkg/errors"
+	log "github.com/sirupsen/logrus"
+	"github.com/urfave/cli/v2"
+
 	"github.com/projecteru2/docker-cni/cni"
 	"github.com/projecteru2/docker-cni/config"
 	"github.com/projecteru2/docker-cni/handler"
-	log "github.com/sirupsen/logrus"
-	"github.com/urfave/cli/v2"
 )
 
 func runCNI(handler handler.Handler) func(*cli.Context) error {
@@ -59,14 +60,15 @@ func runCNI(handler handler.Handler) func(*cli.Context) error {
 		}
 
 		cniToolConfig := cni.CNIToolConfig{
-			CNIPath:     conf.CNIBinDir,
-			NetConfPath: conf.CNIConfDir,
-			NetNS:       netns,
-			Args:        os.Getenv("CNI_ARGS"),
-			IfName:      conf.CNIIfname,
-			Cmd:         c.String("command"),
-			ContainerID: state.ID,
-			Handler:     handler.HandleCNIConfig,
+			CNIPath:        conf.CNIBinDir,
+			NetConfPath:    conf.CNIConfDir,
+			NetNS:          netns,
+			Args:           os.Getenv("CNI_ARGS"),
+			CapabilityArgs: os.Getenv("CAP_ARGS"),
+			IfName:         conf.CNIIfname,
+			Cmd:            c.String("command"),
+			ContainerID:    state.ID,
+			Handler:        handler.HandleCNIConfig,
 		}
 
 		log.Infof("[hook] docker-cni running: %+v", cniToolConfig)

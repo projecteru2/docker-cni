@@ -34,7 +34,7 @@ func (c *ContainerMeta) Save() (err error) {
 	return errors.WithStack(ioutil.WriteFile(c.BundlePath, data, 0644))
 }
 
-func (c ContainerMeta) SpecificIP() string {
+func (c *ContainerMeta) SpecificIP() string {
 	for _, env := range c.Process.Env {
 		parts := strings.Split(env, "=")
 		if len(parts) == 2 && parts[0] == "IPV4" && parts[1] != "" {
@@ -44,11 +44,11 @@ func (c ContainerMeta) SpecificIP() string {
 	return ""
 }
 
-func (c ContainerMeta) RequiresSpecificIP() bool {
+func (c *ContainerMeta) RequiresSpecificIP() bool {
 	return c.SpecificIP() != ""
 }
 
-func (c ContainerMeta) SpecificIPPool() string {
+func (c *ContainerMeta) SpecificIPPool() string {
 	for _, env := range c.Process.Env {
 		parts := strings.Split(env, "=")
 		if len(parts) == 2 && parts[0] == "IPPOOL" && parts[1] != "" {
@@ -58,6 +58,16 @@ func (c ContainerMeta) SpecificIPPool() string {
 	return ""
 }
 
-func (c ContainerMeta) RequiresSpecificIPPool() bool {
+func (c *ContainerMeta) RequiresSpecificIPPool() bool {
 	return c.SpecificIPPool() != ""
+}
+
+func (c *ContainerMeta) RequiresFixedIP() bool {
+	for _, env := range c.Process.Env {
+		parts := strings.Split(env, "=")
+		if len(parts) == 2 && parts[0] == "FIXED_IP" && parts[1] != "0" {
+			return true
+		}
+	}
+	return false
 }

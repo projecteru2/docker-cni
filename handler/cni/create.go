@@ -1,6 +1,8 @@
 package cni
 
 import (
+	"encoding/json"
+	"fmt"
 	"strings"
 
 	"github.com/projecteru2/docker-cni/config"
@@ -19,16 +21,29 @@ func (h *CNIHandler) HandleCreate(conf config.Config, containerMeta *oci.Contain
 
 func (h *CNIHandler) AddCNIStartHook(conf config.Config, containerMeta *oci.ContainerMeta) (err error) {
 	env := []string{}
-	cniArgs := []string{"IgnoreUnknown=true"}
+	cniArgs := []string{
+		"IgnoreUnknown=true",
+		"K8S_POD_NAMESPACE=default",
+		fmt.Sprintf("K8S_POD_NAME=%s", containerMeta.ID),
+	}
 	if containerMeta.RequiresSpecificIPPool() {
 		cniArgs = append(cniArgs, "IPPOOL="+containerMeta.SpecificIPPool())
 	}
 	if containerMeta.RequiresSpecificIP() {
 		cniArgs = append(cniArgs, "IP="+containerMeta.SpecificIP())
 	}
-	if len(cniArgs) != 0 {
-		env = append(env, "CNI_ARGS="+strings.Join(cniArgs, ";"))
+	env = append(env, "CNI_ARGS="+strings.Join(cniArgs, ";"))
+
+	if containerMeta.RequiresFixedIP() {
+		capArgs := map[string]map[string]string{
+			"io.kubernetes.cri.pod-annotations": {
+				"shopee.com/cni.ip-mod": "static",
+			},
+		}
+		capArgsJson, _ := json.Marshal(capArgs)
+		env = append(env, "CAP_ARGS="+string(capArgsJson))
 	}
+
 	containerMeta.AppendHook("prestart",
 		conf.BinPathname,
 		[]string{conf.BinPathname, "cni", "--config", conf.Filename, "--command", "add"}, // args
