@@ -72,6 +72,7 @@ func runCNI(handler handler.Handler) func(*cli.Context) error {
 		}
 
 		log.Infof("[hook] docker-cni running: %+v", cniToolConfig)
+		log.Infof("[hook] state: %v", string(stateBuf))
 		err = cni.Run(cniToolConfig)
 		return errors.WithStack(err)
 	}
