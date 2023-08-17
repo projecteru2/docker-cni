@@ -34,6 +34,8 @@ cat <<! >/etc/docker/cni.yaml
 oci_bin: /usr/bin/runc
 cni_conf_dir: /etc/cni/net.d/
 cni_bin_dir: /opt/cni/bin/
+cni_ifname: eth0
+cni_log: /var/log/cni.log
 log_driver: file:///var/log/docker-cni.log
 log_level: debug
 !
